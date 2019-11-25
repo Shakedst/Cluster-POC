@@ -4,6 +4,7 @@ def count_words(text):
     words = re.split(r'\s',text)
     words = filter(lambda x:x!='',words)
     for word in words:
+        word = word.lower().strip()
         if word not in word_count.keys():
            word_count[word] = 0
         word_count[word] += 1

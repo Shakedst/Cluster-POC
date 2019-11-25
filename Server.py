@@ -1,24 +1,31 @@
 import socket, threading, pickle, time, Queue
 import dill #A library like pickle that can also serialize other objects types, like functions
-from Count_digits import count
+#from Count_digits import count
+from count_words import count_words
 
-with open('nums.txt','r') as f:
+with open(r'texts folder\aesop11.txt','r') as f:
     txt = f.read()
 
-BUFFSIZE = 1024
-func_str = dill.dumps(count)
+BUFFSIZE = 10000000
+func_str = dill.dumps(count_words)
 
+global lock
 lock = threading.Lock()
-global arr
-arr = [0]*10
+global words
+words = {}
 
-def put_in_arr(data_arr):
+def update_dict(data_dict):
     #TODO: Make server work with dictionary too
-    global arr
+    global words, lock
     with lock:
-        for i in range(len(arr)):
-            arr[i] += data_arr[i]
-    print arr
+        for word in data_dict.keys():
+            if word in words.keys():
+                words[word] += data_dict[word]
+            else:
+                words[word] = data_dict[word]
+    max_word = max(words.keys(), key=lambda word:words[word])
+    print max_word, data_dict[max_word], words[max_word]
+    #print words
 
 def get_clients():
     with open('clients.txt','r') as f:
@@ -29,27 +36,29 @@ def get_clients():
     return clients_arr
 
 clients = get_clients()
-print clients
+print 'Clients:',clients
 
-def handler(s,client_addr, func, data):
-    thread_num = threading.current_thread().getName()
+def handler(s,client_addr, func, data, thread_num):
+    #thread_num = threading.current_thread().getName()
     s.connect(client_addr)
     print 'Socket %s connected to: %s' % (thread_num, client_addr)
     s.send(func)
-    print 'Socket %s sent function' % thread_num
-    time.sleep(1)
+    #print 'Socket %s sent function' % thread_num
+    confirmation = s.recv(BUFFSIZE)
+    if confirmation != 'Received function':
+        print confirmation
     data_str = pickle.dumps(data)
     s.send(data_str)
     print 'Socket %s sent data' % thread_num
-    finished_data = s.recv(BUFFSIZE)
-    data_arr = pickle.loads(finished_data)
-    print data_arr
-    put_in_arr(data_arr)
-    
+    returned_data_str = s.recv(BUFFSIZE)
+    returned_data = pickle.loads(returned_data_str)
+    #print returned_data
+    update_dict(returned_data)
+
 
 #Assisgning a socket for each client
 sockets = dict([(socket.socket(socket.AF_INET, socket.SOCK_STREAM), client_addr) for client_addr in clients])
-print sockets
+#print sockets
 
 N = len(clients)
 part_size = len(txt)/N
@@ -59,7 +68,7 @@ parts[-1] = txt[(N-1)*part_size:]
 threads = []
 for s,addr in sockets.iteritems():
     index = len(threads)
-    t = threading.Thread(target=handler, args=(s, addr, func_str, parts[index]))
+    t = threading.Thread(target=handler, args=(s, addr, func_str, parts[index], index))
     t.start()
     threads.append(t)
     
@@ -82,7 +91,10 @@ for i in range(len(threads)):
 
 end = time.clock()
 total_time = end-start
-print total_time
-print arr
-print sum(arr)
+print 'Total time:',total_time
+print words
+sorted_words = sorted(words.keys(), key=lambda word:words[word], reverse=True)
+print 'Top 10 words:'
+for i in range(10):
+    print sorted_words[i], words[sorted_words[i]]
 

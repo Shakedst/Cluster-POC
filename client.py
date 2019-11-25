@@ -36,12 +36,14 @@ BUFFSIZE = 10000000
 # Receiving the function (Count in case of this POC) from the server
 func_str = s.recv(BUFFSIZE)
 func = dill.loads(func_str)
-print 'Testing func:',func('120253482')
-
+print func_str
+#print 'Testing func:',func('120253482')
+s.send('Received function')
 #Receiving the actual data we need to run
 print 'Waiting for data'
 str_data = s.recv(BUFFSIZE)
-print 'Data received. Length:',len(str_data)
+#print 'Data received. Length:', len(str_data)
+print 'Data received'
 data = pickle.loads(str_data)
 ret = func(data)
 print ret
