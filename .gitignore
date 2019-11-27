@@ -1,0 +1,5 @@
+.idea/
+texts folder/
+.vscode/
+*.pyc
+clients.txt

@@ -24,8 +24,8 @@ PORT = find_open_port(50000,51000)
 ADDR = ('localhost',PORT)
 wait_sock.bind(ADDR)
 #TODO: Find proper way to write to file AND DELETE FROM FILE
-with open('clients.txt','a+') as f:
-    f.write(pickle.dumps(ADDR) + '\r\n')
+#with open('clients.txt','a+') as f:
+#    f.write(pickle.dumps(ADDR) + '\r\n')
 print 'Client waiting on', ADDR
 wait_sock.listen(1)
 s, server_addr = wait_sock.accept()
@@ -36,7 +36,7 @@ BUFFSIZE = 10000000
 # Receiving the function (Count in case of this POC) from the server
 func_str = s.recv(BUFFSIZE)
 func = dill.loads(func_str)
-print func_str
+#print func_str
 #print 'Testing func:',func('120253482')
 s.send('Received function')
 #Receiving the actual data we need to run

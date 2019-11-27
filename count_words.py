@@ -1,5 +1,5 @@
-import re
 def count_words(text):
+    import re
     word_count = {}
     words = re.split(r'\s',text)
     words = filter(lambda x:x!='',words)
@@ -9,7 +9,3 @@ def count_words(text):
            word_count[word] = 0
         word_count[word] += 1
     return word_count
-
-
-
-

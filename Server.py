@@ -1,10 +1,32 @@
 import socket, threading, pickle, time, Queue
 import dill #A library like pickle that can also serialize other objects types, like functions
 #from Count_digits import count
-from count_words import count_words
+#from count_words import count_words
+import os # for reading folder
 
-with open(r'texts folder\aesop11.txt','r') as f:
-    txt = f.read()
+start = time.clock()
+
+# Getting the function from the wanted file
+with open(r'count_words.py','r') as f:
+    # TODO after POC: Make this more generic, work if there's more than one function \ more things in file
+    func_txt = f.read()
+    exec(func_txt)
+    print count_words  # count_words function is defined inside of the file, it exists now because we used exec
+    #func_str = dill.dumps(count_words)
+
+def read_folder(folder_name):
+    total_text = ''
+    os.chdir(folder_name)
+    for file_name in os.listdir('.'):
+        if os.path.isfile(file_name):
+            with open(file_name,'r') as f:
+                txt = f.read()
+                total_text += ' ' + txt
+    os.chdir('..')
+    return total_text
+
+txt = read_folder('texts folder')
+print len(txt)
 
 BUFFSIZE = 10000000
 func_str = dill.dumps(count_words)
@@ -29,10 +51,12 @@ def update_dict(data_dict):
 
 def get_clients():
     with open('clients.txt','r') as f:
-        txt = f.read()
-    pickle_arr = txt.split('\r\n')
-    pickle_arr = filter(lambda x:x!='', pickle_arr)
-    clients_arr = [pickle.loads(item) for item in pickle_arr]
+        txt = f.readlines()
+    #pickle_arr = txt.split('\r\n')
+    #pickle_arr = filter(lambda x:x!='', pickle_arr)
+    #clients_arr =[pickle.loads(item) for item in pickle_arr]
+    print txt
+    clients_arr = [eval(line) for line in txt]
     return clients_arr
 
 clients = get_clients()
@@ -55,7 +79,6 @@ def handler(s,client_addr, func, data, thread_num):
     #print returned_data
     update_dict(returned_data)
 
-
 #Assisgning a socket for each client
 sockets = dict([(socket.socket(socket.AF_INET, socket.SOCK_STREAM), client_addr) for client_addr in clients])
 #print sockets
@@ -74,8 +97,6 @@ for s,addr in sockets.iteritems():
     
 #global q
 #q = Queue.Queue(0)
-        
-start = time.clock()
 
 for t in threads:
     t.join()
