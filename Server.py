@@ -36,17 +36,19 @@ lock = threading.Lock()
 global words
 words = {}
 
-def update_dict(data_dict):
+def update_dict(data_dict,thread_num):
     #TODO: Make server work with dictionary too
     global words, lock
+    print 'Thread', thread_num, 'waiting for lock. time:', time.clock()
     with lock:
+        print 'Thread', thread_num, 'acquired lock. time:', time.clock()
         for word in data_dict.keys():
             if word in words.keys():
                 words[word] += data_dict[word]
             else:
                 words[word] = data_dict[word]
     max_word = max(words.keys(), key=lambda word:words[word])
-    print max_word, data_dict[max_word], words[max_word]
+    print 'Thread:', thread_num, 'Time:', time.clock(), 'max word:', max_word, data_dict[max_word], words[max_word]
     #print words
 
 def get_clients():
@@ -73,11 +75,12 @@ def handler(s,client_addr, func, data, thread_num):
         print confirmation
     data_str = pickle.dumps(data)
     s.send(data_str)
-    print 'Socket %s sent data' % thread_num
+    print 'Socket %s sent data.' % thread_num
     returned_data_str = s.recv(BUFFSIZE)
+    print 'Thread', thread_num, 'received data. time:', time.clock()
     returned_data = pickle.loads(returned_data_str)
-    #print returned_data
-    update_dict(returned_data)
+    print 'Thread', thread_num, 'finished loading pickle. time:', time.clock()
+    update_dict(returned_data, thread_num)
 
 #Assisgning a socket for each client
 sockets = dict([(socket.socket(socket.AF_INET, socket.SOCK_STREAM), client_addr) for client_addr in clients])
@@ -113,7 +116,7 @@ for i in range(len(threads)):
 end = time.clock()
 total_time = end-start
 print 'Total time:',total_time
-print words
+#print words
 sorted_words = sorted(words.keys(), key=lambda word:words[word], reverse=True)
 print 'Top 10 words:'
 for i in range(10):
