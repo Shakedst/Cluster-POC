@@ -2,17 +2,8 @@ import socket, threading, pickle, time, Queue
 import dill #A library like pickle that can also serialize other objects types, like functions
 #from Count_digits import count
 #from count_words import count_words
-import os # for reading folder
-
-start = time.clock()
-
-# Getting the function from the wanted file
-with open(r'count_words.py','r') as f:
-    # TODO after POC: Make this more generic, work if there's more than one function \ more things in file
-    func_txt = f.read()
-    exec(func_txt)
-    print count_words  # count_words function is defined inside of the file, it exists now because we used exec
-    #func_str = dill.dumps(count_words)
+import os  #for reading folder
+import multiprocessing
 
 def read_folder(folder_name):
     total_text = ''
@@ -25,100 +16,132 @@ def read_folder(folder_name):
     os.chdir('..')
     return total_text
 
-txt = read_folder('texts folder')
-print len(txt)
-
-BUFFSIZE = 10000000
-func_str = dill.dumps(count_words)
-
-global lock
-lock = threading.Lock()
-global words
-words = {}
-
-def update_dict(data_dict,thread_num):
-    #TODO: Make server work with dictionary too
-    global words, lock
+def update_dict(data_dict,thread_num, words):
+    #Words - the total dictionary, shared between processes
+    #global words
+    #words = manager_dict
+    #print id(words), id(manager_dict)
     print 'Thread', thread_num, 'waiting for lock. time:', time.clock()
-    with lock:
-        print 'Thread', thread_num, 'acquired lock. time:', time.clock()
-        for word in data_dict.keys():
-            if word in words.keys():
-                words[word] += data_dict[word]
-            else:
-                words[word] = data_dict[word]
+    #print 'Thread', thread_num, 'acquired lock. time:', time.clock()
+    for word in data_dict.keys():
+        #print 'something'
+        if word in words.keys():
+            words[word] += data_dict[word]
+        else:
+            words[word] = data_dict[word]
     max_word = max(words.keys(), key=lambda word:words[word])
     print 'Thread:', thread_num, 'Time:', time.clock(), 'max word:', max_word, data_dict[max_word], words[max_word]
-    #print words
 
 def get_clients():
     with open('clients.txt','r') as f:
         txt = f.readlines()
-    #pickle_arr = txt.split('\r\n')
-    #pickle_arr = filter(lambda x:x!='', pickle_arr)
-    #clients_arr =[pickle.loads(item) for item in pickle_arr]
     print txt
     clients_arr = [eval(line) for line in txt]
     return clients_arr
 
-clients = get_clients()
-print 'Clients:',clients
-
-def handler(s,client_addr, func, data, thread_num):
-    #thread_num = threading.current_thread().getName()
+def handler(client_addr, func, data, thread_num, manager_dict):
+    BUFFSIZE = 10000000
+    #s = dill.loads(sock_str)
+    s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     s.connect(client_addr)
     print 'Socket %s connected to: %s' % (thread_num, client_addr)
     s.send(func)
-    #print 'Socket %s sent function' % thread_num
     confirmation = s.recv(BUFFSIZE)
     if confirmation != 'Received function':
         print confirmation
     data_str = pickle.dumps(data)
-    s.send(data_str)
+    s.send(str(len(data_str)).zfill(10) + data_str)
     print 'Socket %s sent data.' % thread_num
     returned_data_str = s.recv(BUFFSIZE)
+    data_len = int(returned_data_str[:10])
+    returned_data_str = returned_data_str[10:]
+    print 'Data len', thread_num, ':', data_len
+    while len(returned_data_str) < data_len:
+        if thread_num == 1:
+            print len(returned_data_str)
+        data = s.recv(8192)
+        returned_data_str += data
     print 'Thread', thread_num, 'received data. time:', time.clock()
-    returned_data = pickle.loads(returned_data_str)
+    try:
+        returned_data = pickle.loads(returned_data_str)
+    except:
+        print 'Error. data length:', len(returned_data_str), 'supposed to be:', data_len
     print 'Thread', thread_num, 'finished loading pickle. time:', time.clock()
-    update_dict(returned_data, thread_num)
+    update_dict(returned_data, thread_num, manager_dict)
+    #q.put((returned_data,thread_num))
 
-#Assisgning a socket for each client
-sockets = dict([(socket.socket(socket.AF_INET, socket.SOCK_STREAM), client_addr) for client_addr in clients])
-#print sockets
+def main():
+    #multiprocessing.freeze_support()
 
-N = len(clients)
-part_size = len(txt)/N
-parts = [txt[i*part_size:(i+1)*part_size] for i in range(N)]
-parts[-1] = txt[(N-1)*part_size:]
+    manager = multiprocessing.Manager()
+    manager_words = manager.dict()
 
-threads = []
-for s,addr in sockets.iteritems():
-    index = len(threads)
-    t = threading.Thread(target=handler, args=(s, addr, func_str, parts[index], index))
-    t.start()
-    threads.append(t)
-    
-#global q
-#q = Queue.Queue(0)
+    start = time.clock()
 
-for t in threads:
-    t.join()
+    # Getting the function from the wanted file
+    with open(r'count_words.py', 'r') as f:
+        # TODO after POC: Make this more generic, work if there's more than one function \ more things in file
+        func_txt = f.read()
+        exec (func_txt)
+        # print count_words  # count_words function is defined inside of the file, it exists now because we used exec
+        # func_str = dill.dumps(count_words)
 
-'''
-for i in range(len(threads)):
-    arr2 = q.get(True)
-    #TODO: Make server work with dictionary too
-    print arr2
-    for j in range(len(arr)):
-        arr[j] += arr2[j]
-'''
+    txt = read_folder('texts folder')
+    print len(txt)
 
-end = time.clock()
-total_time = end-start
-print 'Total time:',total_time
-#print words
-sorted_words = sorted(words.keys(), key=lambda word:words[word], reverse=True)
-print 'Top 10 words:'
-for i in range(10):
-    print sorted_words[i], words[sorted_words[i]]
+    BUFFSIZE = 10000000
+    func_str = dill.dumps(count_words)
+
+    global q
+    q = multiprocessing.Queue()
+
+    global words
+    words = {}
+
+    clients = get_clients()
+    print 'Clients:', clients
+
+    # Assisgning a socket for each client
+    sockets = dict([(socket.socket(socket.AF_INET, socket.SOCK_STREAM), client_addr) for client_addr in clients])
+
+    N = len(clients)
+    part_size = len(txt) / N
+    parts = [txt[i * part_size:(i + 1) * part_size] for i in range(N)]
+    parts[-1] = txt[(N - 1) * part_size:]
+
+    threads = []
+    for s, addr in sockets.iteritems():
+        index = len(threads)
+        #sock_str = dill.dumps(s)
+        t = multiprocessing.Process(target=handler, args=(addr, func_str, parts[index], index, manager_words))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+         t.join()
+
+    # while True:
+    #     if q.qsize() < 8:
+    #         continue
+    #     try:
+    #         data = q.get_nowait()
+    #         print data
+    #         update_dict(data[0],data[1])
+    #     except:
+    #         break
+
+    end = time.clock()
+    total_time = end - start
+    print 'Total time:', total_time
+    sorted_words = sorted(words.keys(), key=lambda word: words[word], reverse=True)
+    print 'Top 10 words:'
+    for i in range(10):
+        print sorted_words[i], words[sorted_words[i]]
+
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
+
+    main()
+
+
 
